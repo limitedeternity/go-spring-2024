@@ -28,8 +28,7 @@ func main() {
 			check(err)
 
 			defer func(Body io.ReadCloser) {
-				err := Body.Close()
-				check(err)
+				check(Body.Close())
 			}(resp.Body)
 
 			body, err := io.ReadAll(resp.Body)
