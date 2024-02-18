@@ -12,7 +12,7 @@ func WordCount(s string) map[string]int {
 	result := make(map[string]int)
 
 	for _, word := range words {
-		elem, _ := result[word]
+		elem := result[word]
 		result[word] = elem + 1
 	}
 

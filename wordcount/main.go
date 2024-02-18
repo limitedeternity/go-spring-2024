@@ -32,7 +32,7 @@ func main() {
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
 
-			elem, _ := result[line]
+			elem := result[line]
 			result[line] = elem + 1
 		}
 	}
