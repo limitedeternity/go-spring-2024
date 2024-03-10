@@ -4,6 +4,7 @@ package externalsort
 
 import (
 	"bufio"
+	"bytes"
 	"container/heap"
 	"errors"
 	"io"
@@ -12,26 +13,49 @@ import (
 	"strings"
 )
 
+type LineEndingType []byte
+
+var LineEnding = struct {
+	CRLF LineEndingType
+	LF   LineEndingType
+}{
+	CRLF: LineEndingType{'\r', '\n'},
+	LF:   LineEndingType{'\n'},
+}
+
 type ReaderImpl struct {
 	ioReader    io.Reader
 	bufioReader *bufio.Reader
+	lineEnding  LineEndingType
 }
 
 func (ri *ReaderImpl) ReadLine() (string, error) {
 	var sb strings.Builder
+	var prev byte
 
 	for {
-		b, err := ri.bufioReader.ReadByte()
+		curr, err := ri.bufioReader.ReadByte()
 
 		if err != nil {
 			return sb.String(), err
 		}
 
-		if b == '\n' {
-			return sb.String(), nil
+		switch true {
+		case bytes.Equal(ri.lineEnding, LineEnding.CRLF):
+			if prev == '\r' && curr == '\n' {
+				result := sb.String()
+				return result[:len(result)-1], nil
+			}
+
+		default:
+			if curr == '\n' {
+				result := sb.String()
+				return result, nil
+			}
 		}
 
-		sb.WriteByte(b)
+		sb.WriteByte(curr)
+		prev = curr
 	}
 }
 
@@ -39,18 +63,28 @@ func NewReader(r io.Reader) LineReader {
 	return &ReaderImpl{
 		ioReader:    r,
 		bufioReader: bufio.NewReader(r),
+		lineEnding:  LineEnding.LF,
 	}
 }
 
+func (ri *ReaderImpl) changeLineEnding(lineEnding LineEndingType) *ReaderImpl {
+	if len(lineEnding) > 0 {
+		ri.lineEnding = lineEnding
+	}
+
+	return ri
+}
+
 type WriterImpl struct {
-	ioWriter io.Writer
+	ioWriter   io.Writer
+	lineEnding LineEndingType
 }
 
 func (wi *WriterImpl) Write(line string) error {
 	_, err := wi.ioWriter.Write([]byte(line))
 
 	if err == nil {
-		_, err = wi.ioWriter.Write([]byte{'\n'})
+		_, err = wi.ioWriter.Write(wi.lineEnding)
 	}
 
 	return err
@@ -58,8 +92,64 @@ func (wi *WriterImpl) Write(line string) error {
 
 func NewWriter(w io.Writer) LineWriter {
 	return &WriterImpl{
-		ioWriter: w,
+		ioWriter:   w,
+		lineEnding: LineEnding.LF,
 	}
+}
+
+func (wi *WriterImpl) changeLineEnding(lineEnding LineEndingType) *WriterImpl {
+	if len(lineEnding) > 0 {
+		wi.lineEnding = lineEnding
+	}
+
+	return wi
+}
+
+func detectLineEnding(f *os.File, linesLimit int) (LineEndingType, error) {
+	_, err := f.Seek(0, io.SeekStart)
+
+	if err != nil {
+		return nil, err
+	}
+
+	endings := map[string]uint64{"\r\n": 0, "\n": 0}
+	reader := bufio.NewReader(f)
+
+	for i := 0; linesLimit < 0 || i < linesLimit; i++ {
+		line, brErr := reader.ReadString('\n')
+
+		if len(line) > 0 {
+			switch true {
+			case strings.HasSuffix(line, "\r\n"):
+				endings["\r\n"]++
+
+			case strings.HasSuffix(line, "\n"):
+				endings["\n"]++
+			}
+		}
+
+		if brErr != nil {
+			break
+		}
+	}
+
+	_, err = f.Seek(0, io.SeekStart)
+
+	if err != nil {
+		return nil, err
+	}
+
+	var mostProbable string
+	var maxCount uint64
+
+	for ending, count := range endings {
+		if count > maxCount {
+			mostProbable = ending
+			maxCount = count
+		}
+	}
+
+	return LineEndingType(mostProbable), nil
 }
 
 type HeapItem struct {
@@ -129,6 +219,7 @@ func Merge(w LineWriter, readers ...LineReader) error {
 
 func Sort(w io.Writer, in ...string) error {
 	var err error
+	var lineEnding LineEndingType
 
 	for _, filename := range in {
 		var f *os.File
@@ -145,7 +236,15 @@ func Sort(w io.Writer, in ...string) error {
 				err = f.Close()
 			}(f)
 
-			lr := NewReader(f)
+			if len(lineEnding) == 0 {
+				lineEnding, err = detectLineEnding(f, -1)
+
+				if err != nil {
+					return
+				}
+			}
+
+			lr := NewReader(f).(*ReaderImpl).changeLineEnding(lineEnding)
 
 			for {
 				line, lrErr := lr.ReadLine()
@@ -179,7 +278,7 @@ func Sort(w io.Writer, in ...string) error {
 				err = f.Close()
 			}(f)
 
-			lw := NewWriter(f)
+			lw := NewWriter(f).(*WriterImpl).changeLineEnding(lineEnding)
 
 			for _, line := range lines {
 				err = lw.Write(line)
@@ -196,7 +295,7 @@ func Sort(w io.Writer, in ...string) error {
 	}
 
 	readers := make([]LineReader, 0, len(in))
-	lw := NewWriter(w)
+	lw := NewWriter(w).(*WriterImpl).changeLineEnding(lineEnding)
 
 	for _, filename := range in {
 		var f *os.File
@@ -211,7 +310,7 @@ func Sort(w io.Writer, in ...string) error {
 			_ = f.Close()
 		}(f)
 
-		lr := NewReader(f)
+		lr := NewReader(f).(*ReaderImpl).changeLineEnding(lineEnding)
 		readers = append(readers, lr)
 	}
 
