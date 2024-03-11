@@ -2,6 +2,7 @@ package rwmutex
 
 import (
 	"fmt"
+	"gitlab.com/slon/shad-go/tools/testtool"
 	"runtime"
 	"sync/atomic"
 	"testing"
@@ -149,4 +150,8 @@ func TestWriteWriteReadDeadlock(t *testing.T) {
 		<-cdone
 	}
 
+}
+
+func TestNoSyncPackageImported(t *testing.T) {
+	testtool.CheckForbiddenImport(t, "sync")
 }
