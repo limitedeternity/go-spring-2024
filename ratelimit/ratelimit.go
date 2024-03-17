@@ -12,7 +12,7 @@ import (
 type Limiter struct {
 	maxCount int
 	interval time.Duration
-	timeouts []*time.Timer
+	timeouts chan []*time.Timer
 	stop     chan struct{}
 }
 
@@ -27,10 +27,13 @@ func NewLimiter(maxCount int, interval time.Duration) *Limiter {
 		timeouts[i] = time.NewTimer(0)
 	}
 
+	timeoutsChan := make(chan []*time.Timer, 1)
+	timeoutsChan <- timeouts
+
 	return &Limiter{
 		maxCount: maxCount,
 		interval: interval,
-		timeouts: timeouts,
+		timeouts: timeoutsChan,
 		stop:     make(chan struct{}, 1),
 	}
 }
@@ -54,9 +57,25 @@ func (l *Limiter) Acquire(ctx context.Context) error {
 			return ErrStopped
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-l.timeouts[i].C:
-			l.timeouts[i] = time.NewTimer(l.interval)
-			return nil
+		case timeouts := <-l.timeouts:
+			updated := func() bool {
+				defer func() {
+					l.timeouts <- timeouts
+				}()
+
+				select {
+				case <-timeouts[i].C:
+					timeouts[i] = time.NewTimer(l.interval)
+					return true
+
+				default:
+					return false
+				}
+			}()
+
+			if updated {
+				return nil
+			}
 		default:
 		}
 	}
