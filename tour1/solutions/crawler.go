@@ -58,7 +58,7 @@ func Crawl(url string, depth int, fetcher Fetcher) {
 	}
 
 	fmt.Printf("<-> %v: found (%v)\n", url, body)
-	done := make(chan string)
+	done := make(chan string, len(urls))
 
 	for i, u := range urls {
 		fmt.Printf("-> %v: crawling %v/%v (%v)\n", url, i+1, len(urls), u)
