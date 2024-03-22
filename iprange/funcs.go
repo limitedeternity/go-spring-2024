@@ -66,7 +66,7 @@ func streamRange(lower, upper net.IP) chan net.IP {
 
 // Expand expands an address with a mask taken from a stream
 func (r *AddressRange) Expand() []net.IP {
-	ips := []net.IP{}
+	var ips []net.IP
 	for ip := range streamRange(r.Min, r.Max) {
 		ips = append(ips, ip)
 	}

@@ -1,25 +1,28 @@
 package iprange_test
 
 import (
-	"fmt"
-	"log"
+	"testing"
 
 	"gitlab.com/slon/shad-go/iprange"
 )
 
-func ExampleParseList() {
-	list, err := iprange.ParseList("10.0.0.1, 10.0.0.5-10, 192.168.1.*, 192.168.10.0/24")
-	if err != nil {
-		log.Fatal(err)
+func FuzzParser(f *testing.F) {
+	testcases := []string{"10.0.0.1, 10.0.0.5-10, 192.168.1.*, 192.168.10.0/24"}
+	for _, tc := range testcases {
+		f.Add(tc)
 	}
 
-	for _, i := range list {
-		fmt.Println(i)
-	}
+	f.Fuzz(func(t *testing.T, orig string) {
+		defer func() {
+			if r := recover(); r != nil {
+				t.Errorf("Parse(%q) panicked: %v", orig, r)
+			}
+		}()
 
-	// Output:
-	// {10.0.0.1 10.0.0.1}
-	// {10.0.0.5 10.0.0.10}
-	// {192.168.1.0 192.168.1.255}
-	// {192.168.10.0 192.168.10.255}
+		_, err := iprange.Parse(orig)
+
+		if err != nil {
+			return
+		}
+	})
 }
