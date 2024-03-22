@@ -25,7 +25,7 @@ func getOpenFiles() []fs.FileInfo {
 		info, err = entry.Info()
 
 		if err != nil {
-			panic(err)
+			continue
 		}
 
 		infos = append(infos, info)
