@@ -50,12 +50,16 @@ var parseDurationTests = []struct {
 
 	// large
 	{"92233720368ns", 92233720368 * time.Nanosecond, true},
+	{"9223372036854775807ns", (1<<63 - 1) * time.Nanosecond, true},
 
 	// https://golang.org/issue/6617
 	{"0.3333333333333333333h", 20 * time.Minute, true},
 
 	// https://golang.org/issue/15011
 	{"0.100000000000000000000h", 6 * time.Minute, true},
+
+	// overflow check
+	{"0.9223372036854775807h", 55*time.Minute + 20*time.Second + 413933267*time.Nanosecond, true},
 
 	// errors
 	{"", 0, false},
@@ -72,6 +76,8 @@ var parseDurationTests = []struct {
 	{"3000000h", 0, false},
 	{"9223372036854775808ns", 0, false},
 	{"-9223372036854775808ns", 0, false},
+	{"9223372036854775.808us", 0, false},
+	{"9223372036854ms775μs808ns", 0, false},
 }
 
 func TestParseDuration(t *testing.T) {
