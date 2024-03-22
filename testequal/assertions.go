@@ -30,8 +30,8 @@ func equal(expected, actual any) bool {
 	case struct{}:
 		return false
 
-	case map[any]any:
-		mapA, ok := actual.(map[any]any)
+	case map[string]string:
+		mapA, ok := actual.(map[string]string)
 
 		if !ok {
 			return false
@@ -41,11 +41,15 @@ func equal(expected, actual any) bool {
 			return false
 		}
 
+		if len(mapA) == 0 {
+			return false
+		}
+
 		for key, eVal := range e {
-			var aVal any
+			var aVal string
 			aVal, ok = mapA[key]
 
-			if !ok || !equal(eVal, aVal) {
+			if !ok || eVal != aVal {
 				return false
 			}
 		}
