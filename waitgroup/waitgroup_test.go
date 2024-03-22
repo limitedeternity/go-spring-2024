@@ -1,9 +1,10 @@
 package waitgroup
 
 import (
-	"gitlab.com/slon/shad-go/tools/testtool"
 	"sync/atomic"
 	"testing"
+
+	"gitlab.com/slon/shad-go/tools/testtool"
 )
 
 func testWaitGroup(t *testing.T, wg1 *WaitGroup, wg2 *WaitGroup) {
@@ -49,6 +50,19 @@ func recoverFromNegativeCounterPanic(t *testing.T) {
 	}
 }
 
+func TestNoop(t *testing.T) {
+	wg1 := New()
+	wg1.Wait()
+
+	wg1.Add(1)
+	go func() {
+		wg1.Done()
+	}()
+	wg1.Wait()
+
+	wg1.Wait()
+}
+
 func TestWaitGroupDoneMisuse(t *testing.T) {
 	defer recoverFromNegativeCounterPanic(t)
 	wg := New()
@@ -89,6 +103,20 @@ func TestWaitGroupRace(t *testing.T) {
 			t.Fatal("Spurious wakeup from Wait")
 		}
 	}
+}
+
+func TestWaitGroupNoBusyWait(t *testing.T) {
+	wg := New()
+	wg.Add(1)
+	defer wg.Done()
+
+	for i := 0; i < 10; i++ {
+		go func() {
+			wg.Wait()
+		}()
+	}
+
+	testtool.VerifyNoBusyGoroutines(t)
 }
 
 func TestNoSyncPackageImported(t *testing.T) {

@@ -296,11 +296,16 @@ func runTests(testDir, privateRepo, problem string) error {
 		coverProfile := path.Join(os.TempDir(), randomName())
 
 		{
-			cmd := exec.Command(testBinary)
+			args := []string{
+				"-test.timeout=1m",
+			}
+
 			if coverageReq.Enabled {
-				cmd = exec.Command(testBinary, "-test.coverprofile", coverProfile)
+				args = append(args, "-test.coverprofile", coverProfile)
 				coverProfiles = append(coverProfiles, coverProfile)
 			}
+
+			cmd := exec.Command(testBinary, args...)
 			if currentUserIsRoot() {
 				if err := sandbox(cmd); err != nil {
 					log.Fatal(err)
@@ -317,13 +322,19 @@ func runTests(testDir, privateRepo, problem string) error {
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 
+			log.Printf("> %s", strings.Join(cmd.Args, " "))
 			if err := cmd.Run(); err != nil {
 				return &TestFailedError{E: err}
 			}
 		}
 
 		{
-			cmd := exec.Command(raceBinaries[testPkg], "-test.bench=.")
+			args := []string{
+				"-test.bench=.",
+				"-test.timeout=1m",
+			}
+
+			cmd := exec.Command(raceBinaries[testPkg], args...)
 			if currentUserIsRoot() {
 				if err := sandbox(cmd); err != nil {
 					log.Fatal(err)
@@ -340,13 +351,20 @@ func runTests(testDir, privateRepo, problem string) error {
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 
+			log.Printf("> %s", strings.Join(cmd.Args, " "))
 			if err := cmd.Run(); err != nil {
 				return &TestFailedError{E: err}
 			}
 		}
 
 		{
-			benchCmd := exec.Command(testBinary, "-test.bench=.", "-test.run=^$")
+			args := []string{
+				"-test.timeout=1m",
+				"-test.bench=.",
+				"-test.run=^$",
+			}
+
+			benchCmd := exec.Command(testBinary, args...)
 			if currentUserIsRoot() {
 				if err := sandbox(benchCmd); err != nil {
 					log.Fatal(err)
@@ -365,6 +383,7 @@ func runTests(testDir, privateRepo, problem string) error {
 			benchCmd.Stdout = &buf
 			benchCmd.Stderr = os.Stderr
 
+			log.Printf("> %s", strings.Join(benchCmd.Args, " "))
 			if err := benchCmd.Run(); err != nil {
 				return &TestFailedError{E: err}
 			}

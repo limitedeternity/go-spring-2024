@@ -45,6 +45,38 @@ func TestCondSignal(t *testing.T) {
 	c.Signal()
 }
 
+func TestCondSignalOveruse(t *testing.T) {
+	var m sync.Mutex
+	c := New(&m)
+	running := make(chan bool, 1)
+	awake := make(chan bool, 1)
+
+	for i := 0; i < 5; i++ {
+		c.Signal() // Checks if empty signals are not deadlocking
+	}
+
+	go func() {
+		m.Lock()
+		running <- true
+		c.Wait() // Checks if it will wait after empty signals
+		awake <- true
+		m.Unlock()
+
+	}()
+
+	<-running
+
+	select {
+	case <-awake:
+		t.Fatal("goroutine not asleep")
+	default:
+	}
+	m.Lock()
+	c.Signal()
+	m.Unlock()
+	<-awake // Will deadlock if no goroutine wakes up
+}
+
 func TestCondSignalGenerations(t *testing.T) {
 	var m sync.Mutex
 	c := New(&m)
