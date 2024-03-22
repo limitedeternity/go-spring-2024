@@ -66,7 +66,7 @@ func (wg *WaitGroup) Done() {
 // Wait blocks until the WaitGroup counter is zero.
 func (wg *WaitGroup) Wait() {
 	if wg.run == nil {
-		panic("nothing to wait")
+		return
 	}
 
 	<-wg.run
